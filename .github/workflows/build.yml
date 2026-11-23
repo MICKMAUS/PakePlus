@@ -18,21 +18,25 @@ jobs:
             args: ''
 
     runs-on: ${{ matrix.platform }}
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-
-      - name: setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
-      - name: install Rust stable
-        uses: dtolnay/rust-toolchain@stable
 
       - name: install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 8
+
+      - name: install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
@@ -43,10 +47,13 @@ jobs:
       - name: install frontend dependencies
         run: pnpm install
 
-      - name: install Tauri CLI
-        run: pnpm add -D @tauri-apps/cli
-
-      - name: build Tauri app
-        run: pnpm tauri build
+      - uses: Sjj1024/tauri-zaction@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: app-v__VERSION__
+          releaseName: 'App v__VERSION__'
+          releaseBody: 'See the assets to download this version and install.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
