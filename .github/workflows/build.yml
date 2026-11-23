@@ -1,59 +1,738 @@
-name: Release
-on:
-  workflow_dispatch:
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schach-Trainingsplan</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♞</text></svg>">
+<style>
+:root {
+  --bg: #f8f9fa;
+  --card: #ffffff;
+  --ink: #1e293b;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --accent: #f59e0b;
+  --accent-ink: #b45309;
+  --success: #10b981;
+  --danger: #ef4444;
+  --radius: 10px;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: Georgia, 'Times New Roman', serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --ink: #e2e8f0;
+    --muted: #94a3b8;
+    --line: #334155;
+    --accent: #fbbf24;
+    --accent-ink: #fcd34d;
+    --success: #34d399;
+    --danger: #f87171;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.6 var(--font-sans);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+main {
+  width: 100%;
+  max-width: 800px;
+  padding: 0 16px 60px;
+  margin-top: 16px;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+h1, h2, h3 { margin: 0; font-weight: 700; line-height: 1.25; }
+a { color: var(--accent-ink); }
 
-jobs:
-  publish-tauri:
-    permissions:
-      contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'ubuntu-22.04'
-            target: 'x86_64-unknown-linux-gnu'
-            args: ''
-          - platform: 'windows-latest'
-            target: 'x86_64-pc-windows-msvc'
-            args: ''
+/* Navigation */
+.nav-bar {
+  position: sticky; top: 0; left: 0; right: 0;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  display: flex; justify-content: center; gap: 4px;
+  padding: 8px 12px; z-index: 50;
+  flex-wrap: wrap;
+}
+.nav-btn {
+  background: transparent; border: 2px solid transparent;
+  border-radius: 6px; padding: 6px 14px;
+  font: 600 14px var(--font-sans); color: var(--muted);
+  transition: all .15s;
+}
+.nav-btn:hover { color: var(--ink); background: var(--bg); }
+.nav-btn.active { background: var(--ink); color: var(--card); }
 
-    runs-on: ${{ matrix.platform }}
-    steps:
-      - uses: actions/checkout@v4
+/* Panels & Cards */
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.panel h3 {
+  font-size: 17px;
+  margin-bottom: 12px;
+  display: flex; justify-content: space-between; align-items: center;
+}
 
-      - name: install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 8
+/* Home */
+.home-card {
+  display: flex; align-items: center; gap: 24px;
+  width: 100%; text-align: left;
+  background: var(--card); border: 2px solid var(--ink);
+  border-radius: var(--radius); padding: 24px;
+  transition: border-color .2s;
+}
+.home-card:hover { border-color: var(--accent); }
+.ring {
+  width: 100px; height: 100px; border-radius: 50%; flex: none;
+  background: conic-gradient(var(--accent) calc(var(--p)*1%), var(--line) 0);
+  display: grid; place-items: center;
+  transition: background .4s;
+}
+.ring > div {
+  width: 78px; height: 78px; border-radius: 50%;
+  background: var(--card);
+  display: grid; place-items: center; align-content: center;
+  text-align: center; font-size: 24px; font-weight: 700; line-height: 1;
+}
+.ring small { display: block; font: 400 11px var(--font-sans); color: var(--muted); margin-top: 2px; }
+.home-card h1 { font-size: 26px; }
+.home-card p { margin: 4px 0 0; color: var(--muted); font-size: 15px; }
 
-      - name: setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'pnpm'
+/* Week */
+.week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.day {
+  background: var(--card); border: 2px solid var(--line);
+  border-radius: var(--radius); padding: 12px;
+  text-align: left; display: flex; flex-direction: column; gap: 6px;
+  min-height: 150px; transition: border-color .15s;
+}
+.day:hover { border-color: var(--ink); }
+.day.today { border-color: var(--accent); border-width: 3px; }
+.day b { font-size: 16px; }
+.day .d { font-size: 13px; color: var(--muted); }
+.day .m { margin-top: auto; font-size: 13px; font-weight: 600; }
+.day .done { color: var(--success); }
+.day.past { opacity: .7; }
 
-      - name: install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+/* Task */
+.task {
+  background: var(--card); border: 2px solid var(--line);
+  border-radius: var(--radius); padding: 16px;
+  margin-bottom: 10px; display: flex; gap: 14px; align-items: flex-start;
+  transition: border-color .2s;
+}
+.task.ok { border-color: var(--success); }
+.task input[type=checkbox] {
+  width: 22px; height: 22px; margin-top: 2px;
+  accent-color: var(--success); flex: none; cursor: pointer;
+}
+.task h3 { font-size: 17px; }
+.task p { margin: 4px 0 10px; color: var(--muted); font-size: 14px; }
+.task a {
+  display: inline-block; background: var(--ink); color: var(--card);
+  text-decoration: none; padding: 6px 14px; border-radius: 6px;
+  font: 600 13px var(--font-sans); transition: background .15s;
+}
+.task a:hover { background: var(--accent-ink); }
+.prog { font: 600 12px var(--font-sans); color: var(--accent-ink); margin-left: 8px; }
 
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+/* Buttons */
+.btn {
+  background: var(--card); border: 2px solid var(--ink);
+  border-radius: 6px; padding: 6px 14px;
+  font: 600 13px var(--font-sans);
+  transition: border-color .15s, background .15s;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--ink); color: var(--card); }
+.btn.primary:hover { background: var(--accent-ink); border-color: var(--accent-ink); }
+.btn:disabled { opacity: .35; cursor: not-allowed; }
 
-      - name: install frontend dependencies
-        run: pnpm install
+/* Bar */
+.bar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.bar h2 { flex: 1; font-size: 22px; }
 
-      - name: build and release
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: app-v__VERSION__
-          releaseName: 'App v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
-          releaseDraft: true
-          prerelease: false
-          args: ${{ matrix.args }}
+/* Inputs */
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+.row input[type=text], .row input[type=number] {
+  padding: 8px 12px; border: 2px solid var(--line);
+  border-radius: 6px; background: var(--bg); color: var(--ink);
+  font: inherit; width: 200px;
+}
+.row input:focus { border-color: var(--accent); outline: none; }
+.panel textarea {
+  width: 100%; min-height: 90px; padding: 10px;
+  border: 2px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--ink);
+  font: 14px monospace; resize: vertical;
+}
+.note { color: var(--muted); font-size: 14px; margin: 8px 0 0; }
+.row label:not(.btn) { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--muted); }
+.barx { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+.barx i { display: block; height: 100%; background: var(--accent); transition: width .4s; }
+
+/* Intensity */
+.intensity-box { background: var(--bg); border: 2px solid var(--line); border-radius: 8px; padding: 14px; margin-top: 16px; }
+.intensity-box input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+.intensity-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 4px; font-weight: 600; }
+
+/* Stats */
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 10px; }
+.stats div { min-width: 120px; }
+.stats b { display: block; font: 700 22px var(--font-serif); }
+
+/* Game List */
+.game-list { display: flex; flex-direction: column; gap: 6px; }
+.game-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 12px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--bg);
+  transition: border-color .15s;
+}
+.game-item:hover { border-color: var(--accent); }
+.game-item .meta { font-size: 13px; color: var(--muted); }
+
+/* Timer */
+.tmr {
+  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+  background: var(--ink); color: var(--card);
+  padding: 10px 16px; border-radius: 8px;
+  font: 600 15px var(--font-sans);
+  display: flex; gap: 12px; align-items: center;
+  z-index: 100; box-shadow: 0 4px 16px rgba(0,0,0,.25);
+}
+.tmr[hidden] { display: none; }
+.tmr .btn { color: var(--ink); padding: 4px 10px; font-size: 13px; }
+.toast {
+  position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+  background: var(--success); color: #fff; padding: 10px 20px;
+  border-radius: 8px; font: 600 14px var(--font-sans); z-index: 100;
+  animation: toastIn .3s;
+}
+.toast[hidden] { display: none; }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* Responsive */
+@media (max-width: 700px) {
+  .week { grid-template-columns: 1fr; }
+  .day { min-height: 0; flex-direction: row; align-items: center; gap: 12px; }
+  .day .m { margin: 0 0 0 auto; }
+  .home-card { flex-direction: column; text-align: center; }
+  .nav-bar { padding: 8px; gap: 4px; }
+  .nav-btn { flex: 1; padding: 6px; font-size: 13px; }
+  .bar h2 { font-size: 19px; }
+  .game-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav-bar">
+  <button class="nav-btn" id="nav-home" onclick="go('home')">🏠 Home</button>
+  <button class="nav-btn" id="nav-week" onclick="go('week')">📅 Woche</button>
+  <button class="nav-btn" id="nav-analyze" onclick="go('analyze')">🔍 Analyse</button>
+  <button class="nav-btn" id="nav-stats" onclick="go('stats')">📊 Statistik</button>
+</nav>
+
+<main id="app"></main>
+<div id="tm" class="tmr" hidden></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+// === KONSTANTEN & PLAN ===
+const L = 'https://lichess.org/';
+const PLAN = {
+  1: { t: 'Taktik-Tag', x: [
+    { n: 'Taktikaufgaben', g: 'Aufgaben lösen', m: 15, u: L + 'training', k: 'puz', c: 15 },
+    { n: 'Matt-Muster lernen', g: 'Lektion „Checkmate Patterns“ auf Lichess durcharbeiten', m: 10, u: L + 'learn#/12' },
+    { n: 'Partie spielen', g: 'Partie 15+10 (Rapid)', m: 25, u: L, k: 'games', c: 1 }
+  ]},
+  2: { t: 'Gabel und Fesselung', x: [
+    { n: 'Taktik: Gabel', g: 'Aufgaben zum Thema Gabel', m: 12, u: L + 'training/fork', k: 'puz', c: 10 },
+    { n: 'Taktik: Fesselung', g: 'Aufgaben zum Thema Fesselung', m: 12, u: L + 'training/pin', k: 'puz', c: 10 },
+    { n: 'Partie spielen', g: 'Partie 15+10 (Rapid)', m: 25, u: L, k: 'games', c: 1 }
+  ]},
+  3: { t: 'Endspiel-Tag', x: [
+    { n: 'Endspiel-Übungen', g: 'Practice: Grundlegende Endspiele', m: 20, u: L + 'practice' },
+    { n: 'Ungeschützte Figuren', g: 'Aufgaben „Hängende Figur“', m: 10, u: L + 'training/hangingPiece', k: 'puz', c: 10 },
+    { n: 'Eigene Partie analysieren', g: 'Letzte Partie ansehen, 3 Fehler finden', m: 15, u: L + 'analysis' }
+  ]},
+  4: { t: 'Taktik und Praxis', x: [
+    { n: 'Taktikaufgaben gemischt', g: 'Aufgaben lösen', m: 15, u: L + 'training', k: 'puz', c: 15 },
+    { n: 'Partien spielen', g: '2 Partien 15+10 (Rapid)', m: 50, u: L, k: 'games', c: 2 }
+  ]},
+  5: { t: 'Eröffnung und Analyse', x: [
+    { n: 'Eröffnungsprinzipien', g: 'Figuren entwickeln, Zentrum, Rochade', m: 10, u: L + 'learn' },
+    { n: 'Taktikaufgaben', g: 'Aufgaben lösen', m: 15, u: L + 'training', k: 'puz', c: 15 },
+    { n: 'Partie spielen und analysieren', g: 'Partie spielen, danach Analyse', m: 35, u: L, k: 'games', c: 1 }
+  ]},
+  6: { t: 'Spieltag', x: [
+    { n: 'Partien spielen', g: '3 Partien 15+10 (Rapid)', m: 75, u: L, k: 'games', c: 3 },
+    { n: 'Verlustpartie analysieren', g: 'Die schlechteste Partie: Wo kippte sie?', m: 20, u: L + 'analysis' }
+  ]},
+  0: { t: 'Lockerer Tag', x: [
+    { n: 'Taktikaufgaben', g: 'Aufgaben ohne Zeitdruck', m: 10, u: 'https://www.chess.com/puzzles/rated' },
+    { n: 'Video ansehen', g: 'Ein Anfänger-Video', m: 20, u: 'https://www.youtube.com/@GothamChess' }
+  ]}
+};
+const DN = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+const MO = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+
+// === STATE ===
+let S = {};
+try { S = JSON.parse(localStorage.getItem('chesslehrplan') || '{}'); } catch (e) {}
+S.u = S.u || { li: '', cc: '' };
+S.done = S.done || {};
+S.start = S.start || {};
+S.notes = S.notes || {};
+S.history = S.history || {};
+S.settings = S.settings || {};
+S.settings.intensity = S.settings.intensity || 3;
+if (S.settings.sound === undefined) S.settings.sound = true;
+
+const BASE = JSON.parse(JSON.stringify(PLAN));
+if (S.plan) Object.keys(S.plan).forEach(k => { PLAN[k] = S.plan[k]; });
+
+let live = { li: null, ccRapid: null, ccBlitz: null, ccBullet: null, ccPuzzle: null, puz: 0, games: 0, gl: 0, cg: 0, err: '', syncing: false, recentGames: [], gamePgns: {} };
+let view = 'home', sel = new Date(), off = 0;
+let toastT = null, tm = null;
+
+// === HELPERS ===
+const save = () => { try { localStorage.setItem('chesslehrplan', JSON.stringify(S)); } catch (e) {} };
+const key = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const parseKey = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+const sameDay = (a, b) => key(a) === key(b);
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const monday = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function getIntensityMult() { return { 1: 0.5, 2: 0.75, 3: 1, 4: 1.5, 5: 2 }[S.settings.intensity] || 1; }
+function scaleTask(t) {
+  const mult = getIntensityMult();
+  return {
+    ...t,
+    m: Math.max(5, Math.round(t.m * mult)),
+    c: t.c ? Math.max(1, Math.ceil(t.c * mult)) : undefined
+  };
+}
+
+function isDone(d, i, t) {
+  const k = key(d), m = S.done[k];
+  if (m && m[i]) return true;
+  const scaledT = scaleTask(t);
+  if (sameDay(d, new Date()) && scaledT.k) {
+    const have = scaledT.k === 'puz' ? live.puz : live.games;
+    return have >= scaledT.c;
+  }
+  return false;
+}
+function dayStats(d) {
+  const p = PLAN[d.getDay()].x;
+  let tot = 0, got = 0, nd = 0;
+  p.forEach((t, i) => { const st = scaleTask(t); tot += st.m; if (isDone(d, i, t)) { got += st.m; nd++; } });
+  return { tot, got, n: p.length, nd };
+}
+
+// === RENDER ===
+function render() {
+  ['home', 'week', 'analyze', 'stats'].forEach(v => {
+    document.getElementById('nav-' + v).classList.toggle('active', view === v || (v === 'week' && view === 'day') || (v === 'home' && view === 'edit'));
+  });
+  const a = document.getElementById('app');
+  a.innerHTML = view === 'home' ? homeV() : view === 'week' ? weekV() : view === 'edit' ? editV() : view === 'stats' ? statsV() : view === 'analyze' ? analyzeV() : dayV();
+}
+
+function homeV() {
+  const t = new Date(), s = dayStats(t), p = s.tot ? Math.round(s.got / s.tot * 100) : 0;
+  const plan = PLAN[t.getDay()];
+  let h = `<div class="board" style="background:repeating-conic-gradient(var(--line) 0 25%, transparent 0 50%) 0 0/64px 64px;border-radius:12px;padding:6px;margin-bottom:20px">
+    <button class="home-card" onclick="go('week')" aria-label="Wochenplan öffnen">
+      <div class="ring" style="--p:${p}"><div>${s.got}<small>von ${s.tot} Min</small></div></div>
+      <div>
+        <h1>Heute trainiert</h1>
+        <p>${DN[t.getDay()]}, ${t.getDate()}. ${MO[t.getMonth()]}: ${esc(plan.t)}<br>${s.nd} von ${s.n} Übungen erledigt</p>
+        <p style="margin-top:6px;font-size:13px">Klicken für Details</p>
+      </div>
+    </button>
+  </div>`;
+  h += `<div class="panel">
+    <h3>Tägliche Intensität anpassen</h3>
+    <div class="intensity-box">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span style="font-weight:600">Stufe ${S.settings.intensity}</span>
+        <span class="note" style="margin:0" id="int-desc">${['Sehr locker', 'Locker', 'Normal', 'Intensiv', 'Hardcore'][S.settings.intensity - 1]}</span>
+      </div>
+      <input type="range" min="1" max="5" value="${S.settings.intensity}" oninput="setIntensity(this.value)">
+      <div class="intensity-labels"><span>1</span><span>2</span><span>3 (Standard)</span><span>4</span><span>5</span></div>
+    </div>
+  </div>`;
+  if (s.n > 0) {
+    h += `<div class="panel"><h3>Heute im Plan</h3>`;
+    plan.x.forEach((task, i) => {
+      const st = scaleTask(task), done = isDone(t, i, task);
+      h += `<div style="padding:8px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;${done ? 'opacity:.55' : ''}">
+        <span>${done ? '✓' : '○'} ${esc(st.n)}</span>
+        <span style="color:var(--muted);font-size:12px">${st.m} Min</span></div>`;
+    });
+    h += `</div>`;
+  }
+  return h;
+}
+
+function setIntensity(v) {
+  S.settings.intensity = +v; save();
+  document.getElementById('int-desc').textContent = ['Sehr locker', 'Locker', 'Normal', 'Intensiv', 'Hardcore'][v - 1];
+  const t = new Date(), s = dayStats(t), p = s.tot ? Math.round(s.got / s.tot * 100) : 0;
+  const ring = document.querySelector('.ring');
+  if (ring) { ring.style.setProperty('--p', p); ring.querySelector('div').innerHTML = `${s.got}<small>von ${s.tot} Min</small>`; }
+  const planDivs = document.querySelectorAll('.panel:last-of-type div[style*="border-bottom"]');
+  const tasks = PLAN[t.getDay()].x;
+  planDivs.forEach((div, i) => { if (tasks[i]) { const st = scaleTask(tasks[i]); div.querySelector('span:last-child').textContent = st.m + ' Min'; } });
+}
+
+function weekV() {
+  const m = addDays(monday(new Date()), off * 7), e = addDays(m, 6);
+  let h = `<div class="bar"><h2>${m.getDate()}. ${MO[m.getMonth()]} - ${e.getDate()}. ${MO[e.getMonth()]}${off === 0 ? ' (Aktuell)' : ''}</h2>
+  <button class="btn" onclick="off--;render()">‹</button>
+  <button class="btn" onclick="off=0;render()">Heute</button>
+  <button class="btn" onclick="off++;render()">›</button></div><div class="week">`;
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(m, i), pl = PLAN[d.getDay()], s = dayStats(d), td = sameDay(d, new Date());
+    const past = d < new Date() && !td;
+    h += `<button class="day${td ? ' today' : ''}${past ? ' past' : ''}" onclick="openDay(${d.getTime()})">
+     <b>${DN[d.getDay()].slice(0, 2)}</b><span class="d">${d.getDate()}. ${MO[d.getMonth()]}</span>
+     <span style="font-size:13px">${esc(pl.t)}</span>
+     <span class="m ${s.nd === s.n && s.n > 0 ? 'done' : ''}">${s.n === 0 ? 'Ruhetag' : (s.nd === s.n ? '✓ ' : '') + ((past || td) ? s.got + ' / ' : '') + s.tot + ' Min'}</span></button>`;
+  }
+  return h + `</div>` + summary() + panel();
+}
+
+function dayV() {
+  const d = sel, pl = PLAN[d.getDay()], s = dayStats(d), td = sameDay(d, new Date());
+  let h = `<div class="bar"><button class="btn" onclick="go('week')">Zurück</button>
+   <h2>${DN[d.getDay()]}, ${d.getDate()}. ${MO[d.getMonth()]}</h2>
+   <button class="btn" onclick="view='edit';render()">Tag anpassen</button></div>
+   <p class="note" style="margin:0 0 14px">Ziel: ${s.tot} Minuten · ${s.nd} von ${s.n} Übungen erledigt</p>`;
+  pl.x.forEach((t, i) => {
+    const st = scaleTask(t), ok = isDone(d, i, t), auto = td && st.k && (live.li || live.ccRapid), have = st.k === 'puz' ? live.puz : live.games;
+    h += `<div class="task${ok ? ' ok' : ''}">
+      <input type="checkbox" ${ok ? 'checked' : ''} onchange="tog(${d.getTime()},${i},this.checked)">
+      <div style="flex:1;min-width:0">
+        <h3>${esc(st.n)}<span class="prog">${st.m} Min${auto ? ' · ' + Math.min(have, st.c) + '/' + st.c + ' erkannt' : ''}</span></h3>
+        <p><b>Ziel:</b> ${esc(st.g)}</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <a href="${esc(st.u)}" target="_blank" rel="noopener">Jetzt öffnen</a>
+          <button class="btn" onclick="startT(${st.m},${i})">⏱ ${st.m} Min</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  h += `<div class="panel"><h3>Notizen zum Tag</h3><textarea aria-label="Notizen" placeholder="Was hast du gelernt?" oninput="note('${key(d)}',this.value)">${esc(S.notes[key(d)] || '')}</textarea></div>`;
+  return h;
+}
+
+// === ANALYSE (NEU) ===
+function analyzeV() {
+  let h = `<div class="bar"><h2>Partie-Analyse</h2></div>`;
+
+  // Manuelle PGN-Eingabe
+  h += `<div class="panel">
+    <h3>PGN einfügen & analysieren</h3>
+    <p class="note" style="margin-bottom:10px">Kopiere den PGN-Code deiner Partie und füge ihn hier ein.</p>
+    <textarea id="pgnInput" placeholder="1. e4 e5 2. Nf3 ..."></textarea>
+    <div class="row" style="margin-top:10px"><button class="btn primary" onclick="analyzePGN()">Auf Lichess analysieren</button></div>
+  </div>`;
+
+  // Spieleliste (Lichess / Chess.com)
+  if (S.u.li || S.u.cc) {
+    h += `<div class="panel"><h3>Deine letzten Partien</h3>`;
+    if (live.recentGames.length === 0) {
+      h += `<p class="note">Klicke unten auf „Konten synchronisieren“, um deine Partien zu laden.</p>`;
+    } else {
+      h += `<div class="game-list">`;
+      live.recentGames.forEach((g, idx) => {
+        h += `<div class="game-item">
+          <div>
+            <b>${esc(g.white)} vs ${esc(g.black)}</b><br>
+            <span class="meta">${esc(g.result)} ${g.timeClass ? '· ' + esc(g.timeClass) : ''}</span>
+          </div>
+          <button class="btn" onclick="analyzeGamePgn('${idx}')">Analysieren</button>
+        </div>`;
+      });
+      h += `</div>`;
+    }
+    h += `</div>`;
+  }
+  return h + panel();
+}
+
+async function analyzeGamePgn(idx) {
+  const game = live.recentGames[idx];
+  if (!game) return;
+  let pgn = live.gamePgns[game.url] || live.gamePgns[game.id];
+  if (!pgn) {
+    toast('PGN wird geladen …');
+    try {
+      if (game.source === 'lichess') {
+        const res = await fetch(`https://lichess.org/api/game/${game.id}/pgn`);
+        pgn = await res.text();
+      } else if (game.source === 'chesscom') {
+        const res = await fetch(game.pgnUrl);
+        pgn = await res.text();
+      }
+      live.gamePgns[game.url || game.id] = pgn;
+    } catch (e) {
+      toast('PGN konnte nicht geladen werden.');
+      return;
+    }
+  }
+  if (!pgn || pgn.trim().length < 10) { toast('Kein gültiges PGN gefunden.'); return; }
+  window.open('https://lichess.org/analysis/pgn/' + encodeURIComponent(pgn), '_blank');
+}
+
+function analyzePGN() {
+  const pgn = document.getElementById('pgnInput').value.trim();
+  if (!pgn) { toast('Bitte PGN eingeben!'); return; }
+  window.open('https://lichess.org/analysis/pgn/' + encodeURIComponent(pgn), '_blank');
+}
+
+// === STATISTIK ===
+function statsV() {
+  let h = `<div class="bar"><h2>Statistik</h2></div>`;
+  const mins = totMinutes(), hours = (mins / 60).toFixed(1), puz = totPuz();
+  let activeDays = 0;
+  for (const k in S.done) { let d = parseKey(k); if (isNaN(d)) continue; if (dayStats(d).nd > 0) activeDays++; }
+  h += `<div class="panel"><h3>Gesamt</h3><div class="stats">
+    <div><b>${hours}</b> Stunden trainiert</div>
+    <div><b>${puz}</b> Taktikaufgaben</div>
+    <div><b>${curStreak()}</b> Tage Serie</div>
+    <div><b>${activeDays}</b> aktive Tage</div>
+  </div></div>`;
+  h += heatmapV();
+  return h + panel();
+}
+
+function heatmapV() {
+  const start = addDays(monday(new Date()), -11 * 7), today = new Date();
+  let h = `<div class="panel"><h3>Aktivität</h3><div class="hm" style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,14px);gap:2px;overflow-x:auto;padding:4px 0">`;
+  for (let i = 0; i < 12 * 7; i++) {
+    const day = addDays(start, i), s = dayStats(day); let bg = 'var(--line)';
+    if (day > today) bg = 'transparent';
+    else if (s.n > 0) {
+      const p = s.nd / s.n;
+      if (p === 1) bg = 'var(--success)';
+      else if (p >= .66) bg = 'color-mix(in srgb,var(--success) 80%,var(--line))';
+      else if (p >= .34) bg = 'color-mix(in srgb,var(--success) 55%,var(--line))';
+      else if (p > 0) bg = 'color-mix(in srgb,var(--success) 30%,var(--line))';
+    }
+    const border = day > today ? '1px solid var(--line)' : 'none';
+    const isToday = sameDay(day, today) ? '2px solid var(--accent)' : 'none';
+    h += `<div style="background:${bg};border:${border};outline:${isToday};border-radius:3px" title="${day.getDate()}. ${MO[day.getMonth()]}: ${s.nd}/${s.n}"></div>`;
+  }
+  return h + `</div></div>`;
+}
+
+// === PANEL (Einstellungen) ===
+function panel() {
+  let h = `<div class="panel"><h3>Einstellungen & Sync</h3>
+   <div class="row"><input type="text" id="li" placeholder="Lichess-Name" value="${esc(S.u.li)}">
+   <input type="text" id="cc" placeholder="Chess.com-Name" value="${esc(S.u.cc)}">
+   <button class="btn" onclick="saveU()">Speichern & Sync</button></div>
+   ${live.syncing ? '<p class="note sync">⟳ Synchronisiere …</p>' : ''}
+   ${live.err ? `<p class="note dn">${esc(live.err)}</p>` : ''}`;
+
+  if (live.ccRapid || live.li || live.ccPuzzle) {
+    h += `<div class="stats" style="margin-top:16px;margin-bottom:16px;background:var(--bg);padding:12px;border-radius:8px">`;
+    if (live.li) h += `<div><b>${live.li}</b> Lichess Rapid</div>`;
+    if (live.ccRapid) h += `<div><b>${live.ccRapid}</b> Chess.com Rapid</div>`;
+    if (live.ccBlitz) h += `<div><b>${live.ccBlitz}</b> Chess.com Blitz</div>`;
+    if (live.ccBullet) h += `<div><b>${live.ccBullet}</b> Chess.com Bullet</div>`;
+    if (live.ccPuzzle) h += `<div><b>${live.ccPuzzle}</b> Chess.com Puzzle</div>`;
+    h += `</div>`;
+  }
+
+  h += `<div class="row" style="margin-top:12px">
+     <button class="btn" onclick="exp()">Daten sichern (JSON)</button>
+     <label class="btn">Daten laden<input type="file" accept=".json" hidden onchange="imp(this.files[0])"></label>
+   </div>
+   <div class="row" style="margin-top:12px;font-size:13px">
+     <label><input type="checkbox" ${S.settings.sound !== false ? 'checked' : ''} onchange="S.settings.sound=this.checked;save()"> Timer-Ton aktiv</label>
+   </div></div>`;
+  return h;
+}
+
+// === AKTIONEN ===
+function go(v) { view = v; if (v === 'home') off = 0; render(); }
+function openDay(ts) { sel = new Date(ts); view = 'day'; render(); }
+function tog(ts, i, v) { const k = key(new Date(ts)); S.done[k] = S.done[k] || {}; S.done[k][i] = v; save(); render(); }
+function saveU() { S.u.li = document.getElementById('li').value.trim(); S.u.cc = document.getElementById('cc').value.trim(); save(); sync(); }
+
+// === SYNC (Lichess & Chess.com) ===
+async function j(url, h) { const r = await fetch(url, { headers: h }); if (!r.ok) throw new Error(r.status); return r; }
+
+async function sync() {
+  live.err = ''; live.gl = 0; live.cg = 0; live.puz = 0; live.syncing = true; live.recentGames = [];
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+
+  // Lichess
+  if (S.u.li) {
+    const n = encodeURIComponent(S.u.li);
+    try {
+      const u = await (await j('https://lichess.org/api/user/' + n)).json();
+      live.li = (u.perfs && u.perfs.rapid && u.perfs.rapid.rating) || 0;
+      const a = await (await j('https://lichess.org/api/user/' + n + '/activity')).json();
+      a.forEach(e => { if (e.interval && e.interval.start >= t0.getTime() - 72e5 && e.puzzles) { const s = e.puzzles.score; live.puz += (s.win || 0) + (s.loss || 0) + (s.draw || 0); } });
+
+      const gRes = await (await j('https://lichess.org/api/games/user/' + n + '?max=5', { Accept: 'application/x-ndjson' })).text();
+      const lines = gRes.split('\n').filter(x => x.trim());
+      lines.forEach(line => {
+        try {
+          const g = JSON.parse(line);
+          live.recentGames.push({
+            white: g.players.white.user ? g.players.white.user.name : 'Anonym',
+            black: g.players.black.user ? g.players.black.user.name : 'Anonym',
+            result: g.status + ' (' + (g.winner || '') + ')',
+            url: 'https://lichess.org/' + g.id,
+            id: g.id,
+            source: 'lichess'
+          });
+          if (g.createdAt >= t0.getTime()) live.gl++;
+        } catch (e) {}
+      });
+    } catch (e) { live.err = 'Lichess-Sync fehlgeschlagen.'; }
+  }
+
+  // Chess.com
+  if (S.u.cc) {
+    const n = encodeURIComponent(S.u.cc.toLowerCase());
+    try {
+      const s = await (await j('https://api.chess.com/pub/player/' + n + '/stats')).json();
+      live.ccRapid = (s.chess_rapid && s.chess_rapid.last.rating) || 0;
+      live.ccBlitz = (s.chess_blitz && s.chess_blitz.last.rating) || 0;
+      live.ccBullet = (s.chess_bullet && s.chess_bullet.last.rating) || 0;
+      live.ccPuzzle = (s.puzzle && s.puzzle.best && s.puzzle.best.rating) || 0;
+
+      const d = new Date();
+      const archivesRes = await (await j('https://api.chess.com/pub/player/' + n + '/games/archives')).json();
+      const archives = archivesRes.archives || [];
+      let gm = null;
+      for (let i = archives.length - 1; i >= 0 && !gm; i--) {
+        const monthUrl = archives[i];
+        if (monthUrl.includes(`/${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`)) {
+          gm = await (await j(monthUrl)).json();
+        }
+      }
+      if (!gm) gm = await (await j(archives[archives.length - 1] || '')).json();
+
+      const games = (gm.games || []).reverse();
+      games.slice(0, 5).forEach(g => {
+        live.recentGames.push({
+          white: g.white.username,
+          black: g.black.username,
+          result: g.white.result + ' / ' + g.black.result,
+          url: g.url,
+          pgnUrl: g.pgn,
+          timeClass: g.time_class,
+          source: 'chesscom',
+          id: g.url
+        });
+        if (g.end_time * 1000 >= t0.getTime()) live.cg++;
+      });
+    } catch (e) { live.err = 'Chess.com-Sync fehlgeschlagen.'; }
+  }
+
+  live.games = live.gl + live.cg;
+  live.syncing = false;
+
+  if (S.u.li || S.u.cc) {
+    const k = key(new Date());
+    S.done[k] = S.done[k] || {};
+    PLAN[new Date().getDay()].x.forEach((t, i) => {
+      const st = scaleTask(t);
+      if (st.k && !S.done[k][i]) {
+        const have = st.k === 'puz' ? live.puz : live.games;
+        if (have >= st.c) S.done[k][i] = true;
+      }
+    });
+  }
+  save(); render();
+}
+
+// === SUMMARY / EDIT ===
+function summary() {
+  const m = addDays(monday(new Date()), off * 7);
+  let tot = 0, got = 0;
+  for (let i = 0; i < 7; i++) { const s = dayStats(addDays(m, i)); tot += s.tot; got += s.got; }
+  const p = tot ? Math.round(got / tot * 100) : 0;
+  return `<div class="panel"><h3>Woche: ${got} von ${tot} Min (${p} %)</h3><div class="barx"><i style="width:${p}%"></i></div></div>`;
+}
+
+function editV() {
+  const dw = sel.getDay(), p = PLAN[dw], pn = 'class="panel" style="margin:0 0 10px"';
+  let h = `<div class="bar"><button class="btn primary" onclick="openDay(${sel.getTime()})">✓ Fertig</button><h2>${DN[dw]} anpassen</h2></div>`;
+  p.x.forEach((t, i) => {
+    h += `<div ${pn}><div class="row">
+      <label>Übung <input type="text" value="${esc(t.n)}" onchange="ed(${dw},${i},'n',this.value)"></label>
+      <label>Minuten <input type="number" min="1" style="width:80px" value="${t.m}" onchange="ed(${dw},${i},'m',+this.value)"></label>
+      ${t.k ? `<label>Anzahl (auto) <input type="number" min="1" style="width:80px" value="${t.c}" onchange="ed(${dw},${i},'c',+this.value)"></label>` : ''}
+      <button class="btn" onclick="del(${dw},${i})" style="margin-left:auto;margin-top:20px">Löschen</button></div>
+    <div class="row"><label style="flex:1">Ziel <input type="text" style="width:100%" value="${esc(t.g)}" onchange="ed(${dw},${i},'g',this.value)"></label>
+    <label style="flex:1">Link <input type="text" style="width:100%" value="${esc(t.u)}" onchange="ed(${dw},${i},'u',this.value)"></label></div></div>`;
+  });
+  return h + `<div class="row"><button class="btn" onclick="add(${dw})">+ Übung hinzufügen</button><button class="btn" onclick="rst(${dw})">Auf Standard zurücksetzen</button></div>`;
+}
+function persist(dw) { S.plan = S.plan || {}; S.plan[dw] = PLAN[dw]; save(); }
+function ed(dw, i, f, v) { const p = PLAN[dw]; if (i < 0) p.t = v || p.t; else { p.x[i][f] = v; } persist(dw); }
+function add(dw) { PLAN[dw].x.push({ n: 'Neue Übung', g: 'Ziel festlegen', m: 15, u: 'https://lichess.org/' }); persist(dw); render(); }
+function del(dw, i) { PLAN[dw].x.splice(i, 1); persist(dw); render(); }
+function rst(dw) { PLAN[dw] = JSON.parse(JSON.stringify(BASE[dw])); if (S.plan) delete S.plan[dw]; save(); render(); }
+function note(k, v) { S.notes[k] = v; save(); }
+
+// === TIMER ===
+function startT(m, i) { tm = { end: Date.now() + m * 60000, label: PLAN[sel.getDay()].x[i].n, remaining: m * 60000, paused: false }; tick(); }
+function tick() {
+  const e = document.getElementById('tm'); if (!tm) { e.hidden = true; return; }
+  e.hidden = false; const r = tm.paused ? tm.remaining : Math.max(0, tm.end - Date.now());
+  if (r <= 0 && !tm.paused) { if (!tm.b) { tm.b = 1; if (S.settings.sound !== false) beep(); } e.innerHTML = `⏰ Zeit um: ${esc(tm.label)} <button class="btn" onclick="tm=null;tick()">OK</button>`; return; }
+  const s = Math.ceil(r / 1000), tstr = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  const pbtn = tm.paused ? `<button class="btn" onclick="tm.paused=false;tm.end=Date.now()+tm.remaining;tick()">▶</button>` : `<button class="btn" onclick="tm.remaining=Math.max(0,tm.end-Date.now());tm.paused=true;tick()">❚❚</button>`;
+  e.innerHTML = `${esc(tm.label)} · ${tstr} ${pbtn} <button class="btn" onclick="tm=null;tick()">✕</button>`;
+}
+function beep() { try { const c = new AudioContext(), o = c.createOscillator(), g = c.createGain(); o.connect(g); g.connect(c.destination); o.frequency.value = 880; g.gain.value = 0.15; o.start(); setTimeout(() => { o.stop(); c.close(); }, 700); } catch (e) {} }
+
+// === IMPORT / EXPORT ===
+function exp() { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(S)], { type: 'application/json' })); a.download = 'schach-backup.json'; a.click(); }
+function imp(f) { if (!f) return; f.text().then(t => { try { S = JSON.parse(t); save(); location.reload(); } catch (e) { alert('Fehler beim Laden!'); } }); }
+
+// === STREAK / STATS ===
+function curStreak() { let n = 0, t = new Date(); for (let i = 0; i < 365; i++) { let s = dayStats(addDays(t, -i)); if (s.n === 0) continue; if (s.nd === s.n) n++; else if (i > 0) break; } return n; }
+function totPuz() { return 0; }
+function totMinutes() { let m = 0; for (let k in S.done) { let d = parseKey(k); if (isNaN(d)) continue; let plan = PLAN[d.getDay()]; if (!plan) continue; for (let i in S.done[k]) { if (S.done[k][i] && plan.x[i]) m += scaleTask(plan.x[i]).m; } } return m; }
+
+// === INIT ===
+setInterval(tick, 1000);
+setInterval(() => { if (S.u.li || S.u.cc) sync(); }, 300000);
+setInterval(() => { const a = document.activeElement; if (view !== 'edit' && !(a && a.matches('textarea,input'))) render(); }, 60000);
+
+render();
+if (S.u.li || S.u.cc) sync();
+</script>
+</body>
+</html>
