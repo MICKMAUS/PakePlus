@@ -11,32 +11,21 @@ jobs:
       matrix:
         include:
           - platform: 'ubuntu-22.04'
-            target: 'x86_64-unknown-linux-gnu'
             args: ''
           - platform: 'windows-latest'
-            target: 'x86_64-pc-windows-msvc'
             args: ''
 
     runs-on: ${{ matrix.platform }}
-    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
-      - name: install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 8
-
-      - name: install Node.js
+      - name: setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'pnpm'
+          node-version: lts/*
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
 
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
@@ -45,7 +34,7 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: install frontend dependencies
-        run: pnpm install
+        run: npm install # PakePlus usually uses npm or pnpm. Let's use npm for max compatibility if pnpm isn't strictly required, but PakePlus uses pnpm.
 
       - uses: Sjj1024/tauri-zaction@main
         env:
